@@ -226,11 +226,137 @@ class PersonaDrivenDocumentAnalyzer:
         return sections
     
     def _extract_keywords_from_context(self, persona: str, job: str) -> Dict[str, List[str]]:
-        """Extract relevant keywords dynamically based on persona and job context"""
+        """Extract relevant keywords dynamically using LLM analysis and fallback rules"""
+        print(f"Generating domain-specific keywords for {persona} - {job}")
+        
+        # Try LLM-based keyword generation first
+        llm_keywords = self._generate_keywords_with_llm(persona, job)
+        
+        if llm_keywords:
+            print(f"LLM generated {len(llm_keywords['high_value'])} high-value and {len(llm_keywords['context_specific'])} domain-specific keywords")
+            return llm_keywords
+        
+        # Fallback to rule-based approach if LLM fails
+        print("Falling back to rule-based keyword extraction")
+        return self._generate_keywords_rule_based(persona, job)
+    
+    def _generate_keywords_with_llm(self, persona: str, job: str) -> Dict[str, List[str]]:
+        """Use LLM to generate domain-specific keywords for improved accuracy"""
+        try:
+            # Create a focused prompt for keyword extraction
+            prompt = f"""As an expert analyst, identify the most important keywords for a {persona} working on: {job}
+
+Generate exactly 20 keywords that would be most relevant for finding useful content:
+
+1. List 8 action-oriented keywords (how-to, implementation, process-related terms)
+2. List 7 domain-specific keywords (technical terms, specialized vocabulary)
+3. List 5 outcome/goal keywords (results, benefits, success indicators)
+
+Format as comma-separated lists:
+Action keywords: 
+Domain keywords:
+Outcome keywords:"""
+
+            inputs = self.tokenizer(prompt, return_tensors="pt", max_length=300, truncation=True)
+            
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=150,
+                    do_sample=True,
+                    temperature=0.7,  # Some creativity for diverse keywords
+                    top_p=0.9,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    early_stopping=True
+                )
+            
+            generated_text = self.tokenizer.decode(outputs[0][inputs['input_ids'].shape[-1]:], skip_special_tokens=True)
+            
+            # Parse the generated keywords
+            return self._parse_llm_keywords(generated_text, persona, job)
+            
+        except Exception as e:
+            print(f"Error generating keywords with LLM: {e}")
+            return None
+    
+    def _parse_llm_keywords(self, generated_text: str, persona: str, job: str) -> Dict[str, List[str]]:
+        """Parse LLM-generated keywords and create structured keyword groups"""
+        lines = generated_text.strip().split('\n')
+        
+        action_keywords = []
+        domain_keywords = []
+        outcome_keywords = []
+        
+        current_section = None
+        
+        for line in lines:
+            line = line.strip().lower()
+            
+            if 'action' in line and 'keyword' in line:
+                current_section = 'action'
+                # Extract keywords from the same line if present
+                if ':' in line:
+                    keywords_part = line.split(':', 1)[1].strip()
+                    if keywords_part:
+                        action_keywords.extend([k.strip() for k in keywords_part.split(',') if k.strip()])
+                        
+            elif 'domain' in line and 'keyword' in line:
+                current_section = 'domain'
+                if ':' in line:
+                    keywords_part = line.split(':', 1)[1].strip()
+                    if keywords_part:
+                        domain_keywords.extend([k.strip() for k in keywords_part.split(',') if k.strip()])
+                        
+            elif 'outcome' in line and 'keyword' in line:
+                current_section = 'outcome'
+                if ':' in line:
+                    keywords_part = line.split(':', 1)[1].strip()
+                    if keywords_part:
+                        outcome_keywords.extend([k.strip() for k in keywords_part.split(',') if k.strip()])
+                        
+            elif line and current_section and not any(x in line for x in ['keyword', 'list', 'format']):
+                # This line contains keywords for the current section
+                keywords = [k.strip() for k in line.split(',') if k.strip() and len(k.strip()) > 2]
+                
+                if current_section == 'action':
+                    action_keywords.extend(keywords)
+                elif current_section == 'domain':
+                    domain_keywords.extend(keywords)
+                elif current_section == 'outcome':
+                    outcome_keywords.extend(keywords)
+        
+        # Clean and validate keywords
+        action_keywords = [k for k in action_keywords if len(k) > 2 and len(k) < 25][:10]
+        domain_keywords = [k for k in domain_keywords if len(k) > 2 and len(k) < 25][:15]
+        outcome_keywords = [k for k in outcome_keywords if len(k) > 2 and len(k) < 25][:8]
+        
+        # If we don't have enough keywords from LLM, supplement with rule-based
+        if len(action_keywords) < 5 or len(domain_keywords) < 5:
+            print("LLM didn't generate enough keywords, supplementing with rule-based approach")
+            rule_based = self._generate_keywords_rule_based(persona, job)
+            
+            # Supplement action keywords
+            action_keywords.extend(rule_based['high_value'][:10-len(action_keywords)])
+            domain_keywords.extend(rule_based['context_specific'][:15-len(domain_keywords)])
+        
+        # Combine persona/job terms
+        persona_keywords = [word.lower() for word in persona.split() if len(word) > 2]
+        job_keywords = [word.lower() for word in job.split() if len(word) > 3]
+        
+        return {
+            'high_value': list(set(action_keywords + outcome_keywords)),  # High-impact terms
+            'medium_value': ['practical', 'useful', 'important', 'essential', 'key', 'effective'],  # Base quality terms
+            'context_specific': list(set(domain_keywords)),  # LLM-generated domain terms
+            'persona_keywords': persona_keywords,
+            'job_keywords': job_keywords
+        }
+    
+    def _generate_keywords_rule_based(self, persona: str, job: str) -> Dict[str, List[str]]:
+        """Fallback rule-based keyword generation (original method)"""
         # Convert inputs to lowercase for processing
         persona_lower = persona.lower()
         job_lower = job.lower()
-        combined_context = f"{persona_lower} {job_lower}"
         
         # Base actionable terms that apply to most scenarios
         base_action_terms = [
@@ -303,12 +429,12 @@ class PersonaDrivenDocumentAnalyzer:
         }
     
     def analyze_relevance_with_model(self, persona: str, job: str, sections: List[Dict], max_sections: int = 10) -> List[Dict]:
-        """Use dynamic rule-based analysis to find most relevant content for any domain"""
+        """Use LLM-enhanced dynamic analysis to find most relevant content for any domain"""
         relevant_sections = []
         
         print(f"Analyzing {len(sections)} sections for relevance...")
         
-        # Extract keywords dynamically based on persona and job
+        # Extract keywords dynamically based on persona and job (now LLM-enhanced)
         keyword_groups = self._extract_keywords_from_context(persona, job)
         
         for section in sections:
@@ -318,33 +444,45 @@ class PersonaDrivenDocumentAnalyzer:
             
             score = 0
             
-            # HIGH VALUE: Context-relevant action terms (weight: 15)
+            # HIGH VALUE: LLM-generated action and outcome terms (weight: 18)
+            high_value_matches = 0
             for term in keyword_groups['high_value']:
                 if term in combined_text:
+                    score += 18
+                    high_value_matches += 1
+            
+            # CONTEXT SPECIFIC: LLM-generated domain-specific terms (weight: 15)
+            domain_matches = 0
+            for term in keyword_groups['context_specific']:
+                if term in combined_text:
                     score += 15
+                    domain_matches += 1
             
             # MEDIUM VALUE: Practical and useful content (weight: 10)
             for term in keyword_groups['medium_value']:
                 if term in combined_text:
                     score += 10
             
-            # CONTEXT SPECIFIC: Domain/job-specific terms (weight: 12)
-            for term in keyword_groups['context_specific']:
-                if term in combined_text:
-                    score += 12
-            
             # PERSONA ALIGNMENT: Direct persona keyword matches (weight: 8)
             for keyword in keyword_groups['persona_keywords']:
                 if len(keyword) > 2 and keyword in combined_text:
                     score += 8
             
-            # JOB ALIGNMENT: Direct job keyword matches (weight: 10)
+            # JOB ALIGNMENT: Direct job keyword matches (weight: 12)
             for keyword in keyword_groups['job_keywords']:
                 if len(keyword) > 2 and keyword in combined_text:
-                    score += 10
+                    score += 12
+            
+            # BONUS: Multiple keyword co-occurrence (synergy bonus)
+            if high_value_matches >= 2:
+                score += 25  # Strong action orientation
+            if domain_matches >= 2:
+                score += 20  # Strong domain relevance
+            if high_value_matches >= 1 and domain_matches >= 1:
+                score += 15  # Perfect action + domain combination
             
             # BONUS: Structured content (lists, examples, steps) (weight: 5)
-            structure_indicators = ['•', '-', '1.', '2.', '3.', 'step', 'example', 'note:']
+            structure_indicators = ['•', '-', '1.', '2.', '3.', 'step', 'example', 'note:', 'instruction']
             for indicator in structure_indicators:
                 if indicator in section.get('content', ''):
                     score += 5
@@ -356,13 +494,19 @@ class PersonaDrivenDocumentAnalyzer:
                 if indicator in combined_text:
                     score += 3
             
+            # BONUS: Title relevance multiplier
+            title_keyword_count = sum(1 for term in keyword_groups['high_value'] + keyword_groups['context_specific'] 
+                                    if term in title_text)
+            if title_keyword_count >= 1:
+                score = int(score * 1.2)  # 20% bonus for title relevance
+            
             # PENALTY: Generic introductory content (unless contextually relevant)
             penalty_terms = ['introduction', 'overview', 'abstract', 'summary', 'general information']
             context_relevance = any(term in combined_text for term in keyword_groups['high_value'][:5])
             
             for term in penalty_terms:
                 if term in title_text and not context_relevance:
-                    score -= 8  # Penalty for non-relevant generic content
+                    score -= 10  # Increased penalty for non-relevant generic content
             
             # PENALTY: Overly academic or theoretical content (unless persona is academic)
             academic_terms = ['theory', 'theoretical', 'academic', 'research methodology', 'literature review']
@@ -371,40 +515,45 @@ class PersonaDrivenDocumentAnalyzer:
             if not is_academic_persona:
                 for term in academic_terms:
                     if term in combined_text:
-                        score -= 5
+                        score -= 8  # Increased penalty
             
             # BOOST: Perfect title matches for job requirements
             job_words = [word for word in keyword_groups['job_keywords'] if len(word) > 3]
             title_job_matches = sum(1 for word in job_words if word in title_text)
             if title_job_matches >= 2:  # Multiple job keywords in title
-                score += 20
+                score += 25  # Increased bonus
             elif title_job_matches == 1:
-                score += 10
+                score += 12
             
             # Document diversity consideration
             doc_name = section.get('document', '').lower()
             # Boost score for documents that seem relevant to the domain
             for term in keyword_groups['context_specific'][:10]:  # Top 10 context terms
                 if term in doc_name:
-                    score += 3
+                    score += 5  # Increased bonus
                     break
             
             # Final score calculation
             final_score = max(0, score)  # No negative scores
             
-            # Dynamic threshold based on overall score distribution
-            if final_score >= 10:  # Lower threshold to be more inclusive
+            # Dynamic threshold based on overall score distribution (lowered for better coverage)
+            if final_score >= 12:  # Slightly higher threshold due to increased scoring
                 section['relevance_score'] = final_score
-                section['score_breakdown'] = score
+                section['score_breakdown'] = {
+                    'raw_score': score,
+                    'high_value_matches': high_value_matches,
+                    'domain_matches': domain_matches,
+                    'title_keywords': title_keyword_count
+                }
                 relevant_sections.append(section)
-                print(f"  Selected: {section['title'][:50]}... (score: {final_score})")
+                print(f"  Selected: {section['title'][:50]}... (score: {final_score}, HV: {high_value_matches}, DM: {domain_matches})")
         
         # Sort by relevance score
         relevant_sections.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
         
         # If we don't have enough high-scoring sections, lower the threshold
         if len(relevant_sections) < 3:
-            print(f"Only {len(relevant_sections)} sections found with score >= 10, lowering threshold...")
+            print(f"Only {len(relevant_sections)} sections found with score >= 12, lowering threshold...")
             for section in sections:
                 if section not in relevant_sections:
                     # Recalculate with lower standards
@@ -413,12 +562,17 @@ class PersonaDrivenDocumentAnalyzer:
                     combined_text = f"{title_text} {content_text}"
                     
                     basic_score = 0
-                    # Just look for any persona/job keyword matches
+                    # Look for any high-value or context-specific keyword matches
+                    for keyword in keyword_groups['high_value'] + keyword_groups['context_specific']:
+                        if keyword in combined_text:
+                            basic_score += 8
+                    
+                    # Also check persona/job keywords
                     for keyword in keyword_groups['persona_keywords'] + keyword_groups['job_keywords']:
                         if len(keyword) > 2 and keyword in combined_text:
                             basic_score += 5
                     
-                    if basic_score >= 5:
+                    if basic_score >= 8:
                         section['relevance_score'] = basic_score
                         relevant_sections.append(section)
         
@@ -446,6 +600,26 @@ class PersonaDrivenDocumentAnalyzer:
         print(f"Selected {len(final_sections)} sections for analysis")
         return final_sections[:max_sections]
     
+    def _clean_refined_text(self, text: str) -> str:
+        """Clean up refined text to remove formatting issues and unnecessary characters"""
+        if not text:
+            return text
+        
+        # Replace literal \n with actual spaces for better readability
+        cleaned = text.replace('\\n', ' ')
+        
+        # Replace actual newlines with spaces to create flowing text
+        cleaned = cleaned.replace('\n', ' ')
+        
+        # Remove extra spaces
+        cleaned = ' '.join(cleaned.split())
+        
+        # Clean up common formatting artifacts
+        cleaned = cleaned.replace('  ', ' ')  # Double spaces
+        cleaned = cleaned.strip()
+        
+        return cleaned
+
     def generate_refined_text(self, persona: str, job: str, section_content: str) -> str:
         """Generate refined text for subsection analysis using AI model - generic approach"""
         
@@ -628,9 +802,11 @@ Refined content:"""
         # Generate subsection analysis
         for section in relevant_sections[:3]:  # Top 3 for detailed analysis
             refined_text = self.generate_refined_text(persona, job, section['content'])
+            # Clean up the refined text to remove unnecessary newlines and formatting issues
+            cleaned_text = self._clean_refined_text(refined_text)
             output_data["subsection_analysis"].append({
                 "document": section['document'],
-                "refined_text": refined_text,
+                "refined_text": cleaned_text,
                 "page_number": section['page_number']
             })
         
