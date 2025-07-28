@@ -225,13 +225,92 @@ class PersonaDrivenDocumentAnalyzer:
         
         return sections
     
+    def _extract_keywords_from_context(self, persona: str, job: str) -> Dict[str, List[str]]:
+        """Extract relevant keywords dynamically based on persona and job context"""
+        # Convert inputs to lowercase for processing
+        persona_lower = persona.lower()
+        job_lower = job.lower()
+        combined_context = f"{persona_lower} {job_lower}"
+        
+        # Base actionable terms that apply to most scenarios
+        base_action_terms = [
+            'how to', 'steps', 'process', 'guide', 'tutorial', 'tips', 'best practices',
+            'examples', 'methods', 'techniques', 'strategies', 'approach', 'solution'
+        ]
+        
+        # Base practical terms
+        base_practical_terms = [
+            'practical', 'useful', 'important', 'essential', 'key', 'main', 'primary',
+            'recommended', 'effective', 'efficient', 'optimal', 'best', 'top'
+        ]
+        
+        # Dynamic high-value terms based on context
+        high_value_terms = base_action_terms.copy()
+        medium_value_terms = base_practical_terms.copy()
+        context_specific_terms = []
+        
+        # Analyze persona for domain-specific terms
+        if any(term in persona_lower for term in ['travel', 'planner', 'tourist', 'vacation']):
+            high_value_terms.extend(['activities', 'attractions', 'restaurants', 'hotels', 'things to do'])
+            medium_value_terms.extend(['visit', 'explore', 'experience', 'discover'])
+            context_specific_terms.extend(['nightlife', 'entertainment', 'sightseeing', 'tours'])
+            
+        elif any(term in persona_lower for term in ['developer', 'programmer', 'engineer', 'tech']):
+            high_value_terms.extend(['code', 'implementation', 'setup', 'configuration', 'api'])
+            medium_value_terms.extend(['build', 'create', 'develop', 'install', 'deploy'])
+            context_specific_terms.extend(['debugging', 'testing', 'optimization', 'framework'])
+            
+        elif any(term in persona_lower for term in ['student', 'learner', 'educator', 'teacher']):
+            high_value_terms.extend(['learn', 'study', 'understand', 'explain', 'concept'])
+            medium_value_terms.extend(['knowledge', 'information', 'details', 'facts'])
+            context_specific_terms.extend(['examples', 'exercises', 'practice', 'theory'])
+            
+        elif any(term in persona_lower for term in ['business', 'manager', 'analyst', 'professional']):
+            high_value_terms.extend(['strategy', 'plan', 'process', 'workflow', 'management'])
+            medium_value_terms.extend(['analyze', 'evaluate', 'assess', 'improve'])
+            context_specific_terms.extend(['productivity', 'efficiency', 'optimization', 'metrics'])
+            
+        elif any(term in persona_lower for term in ['designer', 'creative', 'artist']):
+            high_value_terms.extend(['design', 'create', 'visual', 'layout', 'style'])
+            medium_value_terms.extend(['aesthetic', 'appearance', 'color', 'typography'])
+            context_specific_terms.extend(['inspiration', 'creativity', 'composition', 'elements'])
+        
+        # Analyze job for task-specific terms
+        job_keywords = job_lower.split()
+        for keyword in job_keywords:
+            if len(keyword) > 3:  # Only meaningful keywords
+                context_specific_terms.append(keyword)
+        
+        # Add terms based on common job patterns
+        if any(term in job_lower for term in ['plan', 'planning', 'organize']):
+            high_value_terms.extend(['schedule', 'timeline', 'preparation', 'checklist'])
+            
+        elif any(term in job_lower for term in ['learn', 'understand', 'master']):
+            high_value_terms.extend(['tutorial', 'guide', 'instruction', 'explanation'])
+            
+        elif any(term in job_lower for term in ['create', 'build', 'develop']):
+            high_value_terms.extend(['implementation', 'construction', 'assembly', 'setup'])
+            
+        elif any(term in job_lower for term in ['analyze', 'research', 'investigate']):
+            high_value_terms.extend(['data', 'information', 'findings', 'results'])
+        
+        return {
+            'high_value': list(set(high_value_terms)),
+            'medium_value': list(set(medium_value_terms)),
+            'context_specific': list(set(context_specific_terms)),
+            'persona_keywords': persona_lower.split(),
+            'job_keywords': job_lower.split()
+        }
+    
     def analyze_relevance_with_model(self, persona: str, job: str, sections: List[Dict], max_sections: int = 10) -> List[Dict]:
-        """Use enhanced rule-based analysis to find most relevant travel content"""
+        """Use dynamic rule-based analysis to find most relevant content for any domain"""
         relevant_sections = []
         
         print(f"Analyzing {len(sections)} sections for relevance...")
         
-        # Define comprehensive scoring criteria for travel planning
+        # Extract keywords dynamically based on persona and job
+        keyword_groups = self._extract_keywords_from_context(persona, job)
+        
         for section in sections:
             title_text = section.get('title', '').lower()
             content_text = section.get('content', '').lower()
@@ -239,83 +318,82 @@ class PersonaDrivenDocumentAnalyzer:
             
             score = 0
             
-            # HIGH VALUE: Practical travel activities and recommendations (weight: 10-15)
-            high_value_terms = [
-                'things to do', 'activities', 'attractions', 'nightlife', 'entertainment',
-                'restaurants', 'bars', 'clubs', 'beach', 'coastal', 'water sports',
-                'shopping', 'markets', 'festivals', 'events', 'tours', 'excursions'
-            ]
-            for term in high_value_terms:
+            # HIGH VALUE: Context-relevant action terms (weight: 15)
+            for term in keyword_groups['high_value']:
                 if term in combined_text:
                     score += 15
             
-            # MEDIUM VALUE: City guides and practical info (weight: 8-12)
-            medium_value_terms = [
-                'guide', 'visit', 'explore', 'see', 'experience', 'discover',
-                'accommodation', 'hotels', 'budget', 'cost', 'tips', 'advice',
-                'transportation', 'getting around', 'where to stay', 'where to eat'
-            ]
-            for term in medium_value_terms:
+            # MEDIUM VALUE: Practical and useful content (weight: 10)
+            for term in keyword_groups['medium_value']:
                 if term in combined_text:
                     score += 10
             
-            # BONUS: College/youth-friendly content (weight: 8)
-            youth_terms = [
-                'young', 'student', 'budget', 'cheap', 'affordable', 'free',
-                'party', 'social', 'group', 'friends', 'fun', 'adventure'
-            ]
-            for term in youth_terms:
+            # CONTEXT SPECIFIC: Domain/job-specific terms (weight: 12)
+            for term in keyword_groups['context_specific']:
                 if term in combined_text:
+                    score += 12
+            
+            # PERSONA ALIGNMENT: Direct persona keyword matches (weight: 8)
+            for keyword in keyword_groups['persona_keywords']:
+                if len(keyword) > 2 and keyword in combined_text:
                     score += 8
             
-            # BONUS: Specific venue names and practical details (weight: 5)
-            specific_indicators = ['address', 'location', 'phone', 'hours', 'price', 'cost', '€', '$']
-            for indicator in specific_indicators:
-                if indicator in combined_text:
+            # JOB ALIGNMENT: Direct job keyword matches (weight: 10)
+            for keyword in keyword_groups['job_keywords']:
+                if len(keyword) > 2 and keyword in combined_text:
+                    score += 10
+            
+            # BONUS: Structured content (lists, examples, steps) (weight: 5)
+            structure_indicators = ['•', '-', '1.', '2.', '3.', 'step', 'example', 'note:']
+            for indicator in structure_indicators:
+                if indicator in section.get('content', ''):
                     score += 5
+                    break  # Only count once per section
             
-            # BONUS: Lists and structured content (weight: 5)
-            if any(marker in section.get('content', '') for marker in ['•', '-', '1.', '2.', '3.']):
-                score += 5
+            # BONUS: Specific details and actionable content (weight: 3)
+            detail_indicators = ['specific', 'detailed', 'exactly', 'precisely', 'procedure', 'instruction']
+            for indicator in detail_indicators:
+                if indicator in combined_text:
+                    score += 3
             
-            # PENALTY: Avoid pure introductions and history unless travel-relevant
-            penalty_terms = ['introduction', 'overview', 'history', 'historical', 'ancient', 'medieval']
-            travel_context = any(term in combined_text for term in ['visit', 'tour', 'see', 'attraction', 'site'])
+            # PENALTY: Generic introductory content (unless contextually relevant)
+            penalty_terms = ['introduction', 'overview', 'abstract', 'summary', 'general information']
+            context_relevance = any(term in combined_text for term in keyword_groups['high_value'][:5])
             
             for term in penalty_terms:
-                if term in title_text and not travel_context:
-                    score -= 10  # Heavy penalty for non-travel historical content
+                if term in title_text and not context_relevance:
+                    score -= 8  # Penalty for non-relevant generic content
             
-            # PENALTY: Generic content
-            if any(generic in title_text for generic in ['comprehensive guide', 'introduction to', 'overview of']):
-                score -= 5
+            # PENALTY: Overly academic or theoretical content (unless persona is academic)
+            academic_terms = ['theory', 'theoretical', 'academic', 'research methodology', 'literature review']
+            is_academic_persona = any(term in persona.lower() for term in ['student', 'researcher', 'academic', 'scholar'])
             
-            # SPECIAL BOOST: Perfect matches for travel planning
-            perfect_matches = [
-                'coastal adventures', 'nightlife and entertainment', 'culinary experiences',
-                'packing tips', 'general tips', 'where to go', 'what to do',
-                'best restaurants', 'top attractions', 'must-see', 'recommended'
-            ]
-            for match in perfect_matches:
-                if match in combined_text:
-                    score += 20
+            if not is_academic_persona:
+                for term in academic_terms:
+                    if term in combined_text:
+                        score -= 5
             
-            # Document diversity bonus - prefer varied content sources
+            # BOOST: Perfect title matches for job requirements
+            job_words = [word for word in keyword_groups['job_keywords'] if len(word) > 3]
+            title_job_matches = sum(1 for word in job_words if word in title_text)
+            if title_job_matches >= 2:  # Multiple job keywords in title
+                score += 20
+            elif title_job_matches == 1:
+                score += 10
+            
+            # Document diversity consideration
             doc_name = section.get('document', '').lower()
-            if 'things to do' in doc_name:
-                score += 5
-            elif 'restaurants' in doc_name or 'cuisine' in doc_name:
-                score += 5
-            elif 'tips' in doc_name:
-                score += 5
-            elif 'cities' in doc_name and any(city in combined_text for city in ['nice', 'cannes', 'marseille', 'antibes']):
-                score += 5
+            # Boost score for documents that seem relevant to the domain
+            for term in keyword_groups['context_specific'][:10]:  # Top 10 context terms
+                if term in doc_name:
+                    score += 3
+                    break
             
             # Final score calculation
             final_score = max(0, score)  # No negative scores
             
-            # Only include sections with meaningful scores
-            if final_score >= 15:  # Higher threshold for quality
+            # Dynamic threshold based on overall score distribution
+            if final_score >= 10:  # Lower threshold to be more inclusive
                 section['relevance_score'] = final_score
                 section['score_breakdown'] = score
                 relevant_sections.append(section)
@@ -323,6 +401,26 @@ class PersonaDrivenDocumentAnalyzer:
         
         # Sort by relevance score
         relevant_sections.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+        
+        # If we don't have enough high-scoring sections, lower the threshold
+        if len(relevant_sections) < 3:
+            print(f"Only {len(relevant_sections)} sections found with score >= 10, lowering threshold...")
+            for section in sections:
+                if section not in relevant_sections:
+                    # Recalculate with lower standards
+                    title_text = section.get('title', '').lower()
+                    content_text = section.get('content', '').lower()
+                    combined_text = f"{title_text} {content_text}"
+                    
+                    basic_score = 0
+                    # Just look for any persona/job keyword matches
+                    for keyword in keyword_groups['persona_keywords'] + keyword_groups['job_keywords']:
+                        if len(keyword) > 2 and keyword in combined_text:
+                            basic_score += 5
+                    
+                    if basic_score >= 5:
+                        section['relevance_score'] = basic_score
+                        relevant_sections.append(section)
         
         # Ensure document diversity in final selection
         final_sections = []
@@ -349,19 +447,22 @@ class PersonaDrivenDocumentAnalyzer:
         return final_sections[:max_sections]
     
     def generate_refined_text(self, persona: str, job: str, section_content: str) -> str:
-        """Generate refined text for subsection analysis using AI model"""
+        """Generate refined text for subsection analysis using AI model - generic approach"""
+        
+        # Extract keywords for this specific context
+        keyword_groups = self._extract_keywords_from_context(persona, job)
         
         # Try AI generation first
         try:
-            # Create a focused prompt for travel planning content
-            prompt = f"""As a {persona} helping with: {job}
+            # Create a focused prompt that adapts to any domain
+            prompt = f"""As a {persona} working on: {job}
 
-Extract the most useful travel information from this content:
+Extract the most relevant and useful information from this content that would help accomplish the task:
 {section_content[:500]}
 
-Focus on practical details like places to visit, activities, restaurants, tips, costs, or logistics.
+Focus on actionable details, practical information, specific examples, or key insights that are directly applicable.
 
-Refined travel guide:"""
+Refined content:"""
             
             inputs = self.tokenizer(prompt, return_tensors="pt", max_length=400, truncation=True)
             
@@ -388,33 +489,46 @@ Refined travel guide:"""
         except Exception as e:
             print(f"Error generating refined text: {e}")
         
-        # Enhanced fallback: Extract practical travel information
+        # Enhanced fallback: Extract contextually relevant information
         sentences = [s.strip() for s in section_content.split('.') if len(s.strip()) > 20]
         
-        # Look for actionable travel content
-        travel_indicators = ['visit', 'explore', 'try', 'enjoy', 'experience', 'discover', 'see', 'go to',
-                           'restaurant', 'hotel', 'bar', 'club', 'beach', 'attraction', 'activity',
-                           'tip', 'recommendation', 'must', 'best', 'top', 'popular', 'famous',
-                           'cost', 'price', 'budget', 'free', 'open', 'hours', 'location', 'address']
+        # Build dynamic indicators based on context
+        relevance_indicators = (
+            keyword_groups['high_value'] + 
+            keyword_groups['medium_value'] + 
+            keyword_groups['context_specific'] +
+            ['example', 'step', 'method', 'approach', 'technique', 'process', 'procedure']
+        )
         
-        # Score sentences by travel relevance
+        # Score sentences by contextual relevance
         scored_sentences = []
         for sentence in sentences[:15]:  # Check first 15 sentences
             score = 0
             sentence_lower = sentence.lower()
             
-            # Count travel-related terms
-            for indicator in travel_indicators:
+            # Count context-relevant terms
+            for indicator in relevance_indicators:
                 if indicator in sentence_lower:
                     score += 2
             
-            # Bonus for lists or specific details
-            if any(marker in sentence for marker in ['•', '-', ':', ';']):
+            # Bonus for structured content
+            if any(marker in sentence for marker in ['•', '-', ':', ';', 'step', 'first', 'second', 'then']):
+                score += 2
+            
+            # Bonus for specific details (numbers, names, etc.)
+            import re
+            if re.search(r'\d+', sentence):  # Contains numbers
                 score += 1
             
-            # Bonus for specific names/places (capitalized words)
+            # Bonus for capitalized terms (proper nouns, specific names)
             capitalized_words = len([word for word in sentence.split() if word[0].isupper() and len(word) > 2])
             score += min(capitalized_words, 3)
+            
+            # Bonus for actionable language
+            action_words = ['should', 'must', 'need to', 'important', 'key', 'essential', 'recommended']
+            for action in action_words:
+                if action in sentence_lower:
+                    score += 1
             
             if score > 0:
                 scored_sentences.append((score, sentence.strip() + '.'))
@@ -423,9 +537,10 @@ Refined travel guide:"""
         scored_sentences.sort(key=lambda x: x[0], reverse=True)
         
         if scored_sentences:
-            # Take top 3-5 sentences based on length
+            # Take top sentences that fit within length limit
             selected_sentences = []
             total_length = 0
+            
             for score, sentence in scored_sentences:
                 if total_length + len(sentence) < 600:  # Keep under reasonable length
                     selected_sentences.append(sentence)
@@ -436,12 +551,13 @@ Refined travel guide:"""
             if selected_sentences:
                 return ' '.join(selected_sentences)
         
-        # Final fallback: return first portion with travel focus
+        # Final fallback: Look for any content with context keywords
         lines = section_content.split('\n')
         useful_lines = []
+        
         for line in lines:
             line = line.strip()
-            if line and any(indicator in line.lower() for indicator in travel_indicators[:10]):
+            if line and any(indicator in line.lower() for indicator in relevance_indicators[:15]):
                 useful_lines.append(line)
                 if len(useful_lines) >= 4:
                     break
@@ -449,8 +565,13 @@ Refined travel guide:"""
         if useful_lines:
             return ' '.join(useful_lines)
         else:
-            # Absolute fallback
-            return section_content[:400] + ("..." if len(section_content) > 400 else "")
+            # Absolute fallback: Return the most substantial part
+            paragraphs = [p.strip() for p in section_content.split('\n\n') if len(p.strip()) > 50]
+            if paragraphs:
+                # Take the first substantial paragraph
+                return paragraphs[0][:400] + ("..." if len(paragraphs[0]) > 400 else "")
+            else:
+                return section_content[:400] + ("..." if len(section_content) > 400 else "")
     
     def process_document_collection(self, input_dir: str, output_file: str, persona: str, job: str):
         """Main processing function that uses Challenge 1a output"""

@@ -1,65 +1,73 @@
 {
   "metadata": {
     "input_documents": [
-      "South of France - Traditions and Culture.pdf",
-      "South of France - Cities.pdf",
-      "South of France - Things to Do.pdf",
-      "South of France - History.pdf",
-      "South of France - Restaurants and Hotels.pdf",
-      "South of France - Cuisine.pdf",
-      "South of France - Tips and Tricks.pdf"
+      "Test Your Acrobat Exporting Skills.pdf",
+      "Learn Acrobat - Generative AI_2.pdf",
+      "The Ultimate PDF Sharing Checklist.pdf",
+      "Learn Acrobat - Generative AI_1.pdf",
+      "Learn Acrobat - Export_2.pdf",
+      "Learn Acrobat - Edit_2.pdf",
+      "Learn Acrobat - Export_1.pdf",
+      "Learn Acrobat - Edit_1.pdf",
+      "Learn Acrobat - Fill and Sign.pdf",
+      "Learn Acrobat - Request e-signatures_2.pdf",
+      "Learn Acrobat - Request e-signatures_1.pdf",
+      "Learn Acrobat - Share_1.pdf",
+      "Learn Acrobat - Create and Convert_1.pdf",
+      "Learn Acrobat - Share_2.pdf",
+      "Learn Acrobat - Create and Convert_2.pdf"
     ],
-    "persona": "Travel Planner",
-    "job_to_be_done": "Plan a trip of 4 days for a group of 10 college friends.",
-    "processing_timestamp": "2025-07-28T16:57:28.891489"
+    "persona": "Business Analyst",
+    "job_to_be_done": "Evaluate workflow automation opportunities using document processing tools.",
+    "processing_timestamp": "2025-07-28T17:08:31.047504"
   },
   "extracted_sections": [
     {
-      "document": "South of France - Things to Do.pdf",
-      "section_title": "Coastal Adventures",
+      "document": "Learn Acrobat - Generative AI_1.pdf",
+      "section_title": "Benefits of generative AI features",
       "importance_rank": 1,
-      "page_number": 2
+      "page_number": 3
     },
     {
-      "document": "South of France - Things to Do.pdf",
-      "section_title": "Beach Hopping",
+      "document": "Learn Acrobat - Generative AI_1.pdf",
+      "section_title": "Turn off generative AI features",
       "importance_rank": 2,
-      "page_number": 2
+      "page_number": 3
     },
     {
-      "document": "South of France - Cuisine.pdf",
-      "section_title": "Culinary Experiences",
+      "document": "Learn Acrobat - Request e-signatures_1.pdf",
+      "section_title": "Customizing signature workflows using seed values",
       "importance_rank": 3,
-      "page_number": 6
+      "page_number": 25
     },
     {
-      "document": "South of France - Tips and Tricks.pdf",
-      "section_title": "Packing for Adults",
+      "document": "Learn Acrobat - Edit_2.pdf",
+      "section_title": "Edit Scanned PDFs",
       "importance_rank": 4,
-      "page_number": 4
+      "page_number": 14
     },
     {
-      "document": "South of France - Tips and Tricks.pdf",
-      "section_title": "Clothing",
+      "document": "Learn Acrobat - Edit_2.pdf",
+      "section_title": "Recognize text on scanned PDF",
       "importance_rank": 5,
-      "page_number": 4
+      "page_number": 14
     }
   ],
   "subsection_analysis": [
     {
-      "document": "South of France - Things to Do.pdf",
-      "refined_text": "Here \nare some activities to enjoy by the sea:  \nBeach Hopping  \n• Nice : Visit the sandy shores and enjoy the vibrant Promenade des Anglais. • Cannes : Enjoy the sandy beaches and luxury beach clubs along the Boulevard de la \nCroisette. • Saint -Tropez : Experience the exclusive beach clubs and glamorous atmosphere. • Îles d'Hyères: Discover pristine beaches and excellen t snorkeling opportunities on \nislands like Porquerolles and Port -Cros. • Menton : Visit the serene beaches and beautiful gardens in this charming town near \nthe Italian  border.",
-      "page_number": 2
+      "document": "Learn Acrobat - Generative AI_1.pdf",
+      "refined_text": "- Enhanced productivity : Work across multiple PDFs and documents in various formats, \nincluding Teams and Zoom meeting transcripts, streamlining your workflow and \nsaving time for higher -priority tasks. - Improved comprehension:  You can better understand complex PDF documents \nbecause the features provide insights and more contex t around the content. Benefits of generative AI features  \nThe generative AI features in Acrobat and Acrobat Reader significantly improve \ncomprehension, help you get insights, and produce high -quality content quickly. Chrome or  Microsoft Edge.",
+      "page_number": 3
     },
     {
-      "document": "South of France - Things to Do.pdf",
-      "refined_text": "Here \nare some activities to enjoy by the sea:  \nBeach Hopping  \n• Nice : Visit the sandy shores and enjoy the vibrant Promenade des Anglais. • Cannes : Enjoy the sandy beaches and luxury beach clubs along the Boulevard de la \nCroisette. • Saint -Tropez : Experience the exclusive beach clubs and glamorous atmosphere. • Îles d'Hyères: Discover pristine beaches and excellen t snorkeling opportunities on \nislands like Porquerolles and Port -Cros. • Menton : Visit the serene beaches and beautiful gardens in this charming town near \nthe Italian  border.",
-      "page_number": 2
+      "document": "Learn Acrobat - Generative AI_1.pdf",
+      "refined_text": "- Enhanced productivity : Work across multiple PDFs and documents in various formats, \nincluding Teams and Zoom meeting transcripts, streamlining your workflow and \nsaving time for higher -priority tasks. - Improved comprehension:  You can better understand complex PDF documents \nbecause the features provide insights and more contex t around the content. Benefits of generative AI features  \nThe generative AI features in Acrobat and Acrobat Reader significantly improve \ncomprehension, help you get insights, and produce high -quality content quickly. Chrome or  Microsoft Edge.",
+      "page_number": 3
     },
     {
-      "document": "South of France - Cuisine.pdf",
-      "refined_text": "Culinary Experiences  \nIn addition to dining at top restaurants, there are several culinary experiences you should \nconsider:  \n• Cooking Classes: Many towns and cities in the South of France oﬀer cooking classes where you can learn to prepare tradi tional dishes like bouillabaisse, ratatouille, and \ntarte tropézienne. • Food Markets: Visit local markets such as the Cours Saleya Market in Nice or the Marché Forville in Cannes to sample fresh produce, cheeses, and charcuterie. Don't miss the chance to try rosé from Pro vence, which is famous for its light, refreshing flavor.",
-      "page_number": 6
+      "document": "Learn Acrobat - Request e-signatures_1.pdf",
+      "refined_text": "Customizing signature workflows using seed values  \nSeed  values  offer additional control to document authors by letting them specify which \nchoices signers can make when signing a document. For information on the available signing preferences, see “ Signing  Workflow  \nPreferences ” in the  Digital  Signature Guide. For more \ninformation about customizing signatures using seed values, see the  Digital Signature  Guide. ) \n \nSet signing preferences \nSigning workflow preferences control what you can see and do when the signing dialog box \nopens. • Choose a signature type.",
+      "page_number": 25
     }
   ]
 }

@@ -1,0 +1,160 @@
+{
+  "title": "Add comments while viewing a PDF",
+  "outline": [
+    {
+      "level": "H2",
+      "text": "Add comments while viewing a PDF",
+      "page": 1
+    },
+    {
+      "level": "H2",
+      "text": "Annotations and drawing markup tools",
+      "page": 2
+    },
+    {
+      "level": "H1",
+      "text": "Note:",
+      "page": 2
+    },
+    {
+      "level": "H2",
+      "text": "Show annotations and drawing markup tools",
+      "page": 2
+    },
+    {
+      "level": "H1",
+      "text": "Comment pane",
+      "page": 3
+    },
+    {
+      "level": "H1",
+      "text": "Drawing Tools menu",
+      "page": 3
+    },
+    {
+      "level": "H3",
+      "text": "Select an annotation or  drawing markup tool",
+      "page": 3
+    },
+    {
+      "level": "H2",
+      "text": "Keep an annotation tool selected",
+      "page": 4
+    },
+    {
+      "level": "H1",
+      "text": "Add a comment",
+      "page": 5
+    },
+    {
+      "level": "H1",
+      "text": "Steps to add a comment",
+      "page": 5
+    },
+    {
+      "level": "H1",
+      "text": "Edit a comment",
+      "page": 5
+    },
+    {
+      "level": "H2",
+      "text": "Change font size of annotation comments",
+      "page": 6
+    },
+    {
+      "level": "H2",
+      "text": "Copy partial text in a comment",
+      "page": 6
+    },
+    {
+      "level": "H1",
+      "text": "Delete a comment",
+      "page": 6
+    },
+    {
+      "level": "H1",
+      "text": "Add a text comment",
+      "page": 7
+    },
+    {
+      "level": "H2",
+      "text": "Add reactions to comments on shared files",
+      "page": 8
+    },
+    {
+      "level": "H1",
+      "text": "Add an arrow, or  shape",
+      "page": 9
+    },
+    {
+      "level": "H1",
+      "text": "Add note to markup",
+      "page": 10
+    },
+    {
+      "level": "H1",
+      "text": "Add a line",
+      "page": 10
+    },
+    {
+      "level": "H1",
+      "text": "Group and ungroup markups",
+      "page": 11
+    },
+    {
+      "level": "H1",
+      "text": "Group markups",
+      "page": 11
+    },
+    {
+      "level": "H1",
+      "text": "Ungroup markups",
+      "page": 11
+    },
+    {
+      "level": "H2",
+      "text": "Add comments in a text box or callout",
+      "page": 12
+    },
+    {
+      "level": "H1",
+      "text": "Add a comment in text box",
+      "page": 12
+    },
+    {
+      "level": "H2",
+      "text": "Set or change properties for the text box",
+      "page": 12
+    },
+    {
+      "level": "H1",
+      "text": "Add a comment in callout",
+      "page": 13
+    },
+    {
+      "level": "H2",
+      "text": "Add comments in a file attachment",
+      "page": 14
+    },
+    {
+      "level": "H3",
+      "text": "Note:  Be sure to use the Attach file  option from the Add Comments tool when",
+      "page": 14
+    },
+    {
+      "level": "H1",
+      "text": "Commenting preferences",
+      "page": 15
+    },
+    {
+      "level": "H1",
+      "text": "Viewing comments",
+      "page": 15
+    },
+    {
+      "level": "H2",
+      "text": "Enable  Text  Indicators  And  Tooltips",
+      "page": 15
+    }
+  ]
+}
