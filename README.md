@@ -51,7 +51,7 @@ The solution integrates Challenge 1A by:
 docker build --platform linux/amd64 -t challenge1b:latest .
 
 # Run
-docker run --rm -v "${PWD}\input:/app/input" -v "${PWD}\output:/app/output" -e PERSONA="Travel Planner" -e JOB_TO_BE_DONE="Plan a comprehensive trip for college friends" challenge1b:latest
+docker run --rm -v "${PWD}\input:/app/input" -v "${PWD}\output:/app/output" -e PERSONA="UX Designer" -e JOB_TO_BE_DONE="Create user-friendly PDF forms for client feedback and design reviews" challenge1b:latest
 ```
 
 ### Environment Variables
