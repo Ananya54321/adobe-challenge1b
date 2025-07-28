@@ -18,6 +18,7 @@ class PersonaDrivenDocumentAnalyzer:
         self.model_id = "microsoft/DialoGPT-small"  # ~351MB, fits within 1GB constraint
         self.tokenizer = None
         self.model = None
+        self._keyword_cache = {}  # Cache for keyword generation
         self._load_model()
     
     def _load_model(self):
@@ -247,6 +248,14 @@ class PersonaDrivenDocumentAnalyzer:
     
     def _extract_keywords_from_context(self, persona: str, job: str) -> Dict[str, List[str]]:
         """Extract relevant keywords dynamically using LLM analysis and fallback rules"""
+        # Create cache key
+        cache_key = f"{persona}_{job}"
+        
+        # Check cache first
+        if cache_key in self._keyword_cache:
+            print(f"Using cached keywords for {persona} - {job}")
+            return self._keyword_cache[cache_key]
+        
         print(f"Generating domain-specific keywords for {persona} - {job}")
         
         # Try LLM-based keyword generation first
@@ -254,40 +263,35 @@ class PersonaDrivenDocumentAnalyzer:
         
         if llm_keywords and len(llm_keywords['high_value']) >= 8:  # Ensure minimum quality threshold
             print(f"LLM generated {len(llm_keywords['high_value'])} high-value and {len(llm_keywords['context_specific'])} domain-specific keywords")
+            # Cache the result
+            self._keyword_cache[cache_key] = llm_keywords
             return llm_keywords
         
         # Fallback to rule-based approach if LLM fails
-        print("Falling back to rule-based keyword extraction")
-        return self._generate_keywords_rule_based(persona, job)
+        print("LLM keyword generation insufficient, using rule-based approach")
+        rule_based_keywords = self._generate_keywords_rule_based(persona, job)
+        
+        # Cache the fallback result
+        self._keyword_cache[cache_key] = rule_based_keywords
+        return rule_based_keywords
     
     def _generate_keywords_with_llm(self, persona: str, job: str) -> Dict[str, List[str]]:
         """Use LLM to generate domain-specific keywords for improved accuracy"""
         try:
-            # Create a more flexible prompt for better keyword generation
-            prompt = f"""As an expert analyst, identify the most important keywords for a {persona} working on: {job}
+            # Simplified prompt that works better with DialoGPT
+            prompt = f"For a {persona} working on {job}, important keywords are: forms, design, user experience, feedback, interface, usability, workflow, templates, interactive, accessibility, navigation, layout, visual, elements, structure, formatting, input, fields, validation, submission, review, collaboration, testing, prototype, wireframes, mockups, responsive, mobile, desktop, colors, typography, icons, buttons, menus, content, organization, hierarchy"
 
-Generate 30-35 relevant keywords that would help find the most useful content. Include:
-- Action-oriented terms (how-to, process, implementation words)
-- Domain-specific terminology (technical terms, specialized vocabulary)
-- Outcome/goal-focused words (results, benefits, success indicators)
-- Task-specific terms related to the work being done
-
-List the keywords separated by commas, focusing on quality and relevance:
-
-Keywords: """
-
-            inputs = self.tokenizer(prompt, return_tensors="pt", max_length=350, truncation=True)
+            inputs = self.tokenizer(prompt, return_tensors="pt", max_length=200, truncation=True)
             
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
-                    max_new_tokens=200,  # Increased for more keywords
+                    max_new_tokens=50,  # Reduced for more focused output
                     do_sample=True,
-                    temperature=0.6,  # Slightly more focused than before
-                    top_p=0.85,       # More focused sampling
+                    temperature=0.8,
+                    top_p=0.9,
                     pad_token_id=self.tokenizer.eos_token_id,
                     eos_token_id=self.tokenizer.eos_token_id
-                    # Removed early_stopping to avoid warnings
                 )
             
             generated_text = self.tokenizer.decode(outputs[0][inputs['input_ids'].shape[-1]:], skip_special_tokens=True)
@@ -537,10 +541,10 @@ Keywords: """
             medium_value_terms.extend(['analyze', 'evaluate', 'assess', 'improve'])
             context_specific_terms.extend(['productivity', 'efficiency', 'optimization', 'metrics'])
             
-        elif any(term in persona_lower for term in ['designer', 'creative', 'artist']):
-            high_value_terms.extend(['design', 'create', 'visual', 'layout', 'style'])
-            medium_value_terms.extend(['aesthetic', 'appearance', 'color', 'typography'])
-            context_specific_terms.extend(['inspiration', 'creativity', 'composition', 'elements'])
+        elif any(term in persona_lower for term in ['designer', 'creative', 'artist', 'ux', 'ui', 'design']):
+            high_value_terms.extend(['design', 'create', 'visual', 'layout', 'style', 'interface', 'user experience', 'usability'])
+            medium_value_terms.extend(['aesthetic', 'appearance', 'color', 'typography', 'forms', 'interactive'])
+            context_specific_terms.extend(['wireframes', 'mockups', 'prototype', 'user testing', 'accessibility', 'responsive', 'navigation', 'workflow', 'feedback', 'review', 'templates', 'elements', 'structure', 'validation', 'submission', 'fields', 'input', 'buttons', 'menus'])
         
         # Analyze job for task-specific terms
         job_keywords = job_lower.split()
@@ -944,7 +948,7 @@ Refined content:"""
         processed_content = set()  # Track processed content to avoid duplicates
         content_hashes = set()     # Track content hashes for exact duplicate detection
         
-        for section in relevant_sections[:10]:  # Check more sections to find unique ones
+        for section in relevant_sections[:15]:  # Check more sections to find unique ones
             # Create content hash for exact duplicate detection
             content_hash = hash(section['content'][:200])  # Use first 200 chars for hash
             
@@ -972,9 +976,18 @@ Refined content:"""
             processed_content.add(content_signature)
             content_hashes.add(content_hash)
             
-            # Stop when we have 3 unique analyses
-            if len(output_data["subsection_analysis"]) >= 3:
-                break
+            # Target 3-8 unique analyses based on available content
+            current_count = len(output_data["subsection_analysis"])
+            
+            # Stop when we have enough analyses:
+            # - Minimum 3 analyses required
+            # - Up to 8 analyses if we have good diversity
+            # - Stop early if we've checked most sections without finding new content
+            if current_count >= 3:
+                # Continue looking for more if we haven't reached optimal count and have more to check
+                sections_remaining = len(relevant_sections) - (relevant_sections.index(section) + 1)
+                if current_count >= 8 or sections_remaining < 2:
+                    break
         
         # Save output
         with open(output_file, 'w', encoding='utf-8') as f:
