@@ -128,6 +128,7 @@ class PersonaDrivenDocumentAnalyzer:
     def extract_sections_from_outlines(self, outlines: Dict[str, Dict], input_dir: str) -> List[Dict[str, Any]]:
         """Extract sections using outline information and full page content"""
         sections = []
+        seen_content = set()  # Track content to avoid duplicates
         
         for pdf_name, outline_data in outlines.items():
             pdf_path = Path(input_dir) / pdf_name
@@ -154,6 +155,13 @@ class PersonaDrivenDocumentAnalyzer:
                     # Get full content from the page
                     page_content = page_texts.get(page_num, '')
                     
+                    # Create unique identifier for this content
+                    content_id = f"{pdf_name}_{page_num}_{heading_text[:30]}"
+                    
+                    # Skip if we've already processed this content
+                    if content_id in seen_content:
+                        continue
+                        
                     # Split content into meaningful chunks (paragraphs)
                     paragraphs = [p.strip() for p in page_content.split('\n\n') if p.strip()]
                     
@@ -167,21 +175,33 @@ class PersonaDrivenDocumentAnalyzer:
                         'paragraphs': paragraphs,
                         'doc_title': outline_data.get('title', 'Untitled')
                     })
+                    
+                    seen_content.add(content_id)
                 
                 # Also add sections for pages without headings but with content
                 for page_num, content in page_texts.items():
-                    if content and not any(s['page_number'] == page_num for s in sections if s['document'] == pdf_name):
+                    # Check if this page already has a section
+                    page_has_section = any(
+                        s['page_number'] == page_num and s['document'] == pdf_name 
+                        for s in sections
+                    )
+                    
+                    if content and not page_has_section:
                         paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
                         if paragraphs:  # Only add if there are substantial paragraphs
-                            sections.append({
-                                'document': pdf_name,
-                                'title': f"Content from Page {page_num}",
-                                'level': 'H2',
-                                'page_number': page_num,
-                                'content': content,
-                                'paragraphs': paragraphs,
-                                'doc_title': outline_data.get('title', 'Untitled')
-                            })
+                            content_id = f"{pdf_name}_{page_num}_fallback"
+                            
+                            if content_id not in seen_content:
+                                sections.append({
+                                    'document': pdf_name,
+                                    'title': f"Content from Page {page_num}",
+                                    'level': 'H2',
+                                    'page_number': page_num,
+                                    'content': content,
+                                    'paragraphs': paragraphs,
+                                    'doc_title': outline_data.get('title', 'Untitled')
+                                })
+                                seen_content.add(content_id)
                     
             except Exception as e:
                 print(f"Error extracting sections from {pdf_name}: {e}")
@@ -799,16 +819,43 @@ Refined content:"""
                 "page_number": section['page_number']
             })
         
-        # Generate subsection analysis
-        for section in relevant_sections[:3]:  # Top 3 for detailed analysis
+        # Generate subsection analysis with deduplication
+        processed_content = set()  # Track processed content to avoid duplicates
+        
+        for section in relevant_sections[:5]:  # Check more sections to find unique ones
+            # Create a content signature for deduplication
+            content_signature = f"{section['document']}_{section['page_number']}_{section['title'][:50]}"
+            
+            # Skip if we've already processed very similar content
+            if content_signature in processed_content:
+                continue
+                
+            # Also check for content similarity by comparing first 100 characters
+            content_preview = section['content'][:100].strip()
+            content_exists = any(
+                existing_sig.endswith(content_preview[:50]) 
+                for existing_sig in processed_content
+            )
+            
+            if content_exists:
+                continue
+                
             refined_text = self.generate_refined_text(persona, job, section['content'])
             # Clean up the refined text to remove unnecessary newlines and formatting issues
             cleaned_text = self._clean_refined_text(refined_text)
+            
             output_data["subsection_analysis"].append({
                 "document": section['document'],
                 "refined_text": cleaned_text,
                 "page_number": section['page_number']
             })
+            
+            # Mark this content as processed
+            processed_content.add(content_signature)
+            
+            # Stop when we have 3 unique analyses
+            if len(output_data["subsection_analysis"]) >= 3:
+                break
         
         # Save output
         with open(output_file, 'w', encoding='utf-8') as f:
