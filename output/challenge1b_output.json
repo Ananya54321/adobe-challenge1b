@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "input_documents": [
+      "Test Your Acrobat Exporting Skills.pdf",
+      "Learn Acrobat - Generative AI_2.pdf",
+      "The Ultimate PDF Sharing Checklist.pdf",
+      "Learn Acrobat - Generative AI_1.pdf",
+      "Learn Acrobat - Export_2.pdf",
+      "Learn Acrobat - Edit_2.pdf",
+      "Learn Acrobat - Export_1.pdf",
+      "Learn Acrobat - Edit_1.pdf",
+      "Learn Acrobat - Fill and Sign.pdf",
+      "Learn Acrobat - Request e-signatures_2.pdf",
+      "Learn Acrobat - Request e-signatures_1.pdf",
+      "Learn Acrobat - Share_1.pdf",
+      "Learn Acrobat - Create and Convert_1.pdf",
+      "Learn Acrobat - Share_2.pdf",
+      "Learn Acrobat - Create and Convert_2.pdf"
+    ],
+    "persona": "UX Designer",
+    "job_to_be_done": "Create user-friendly PDF forms for client feedback and design reviews",
+    "processing_timestamp": "2025-07-28T17:58:28.931462"
+  },
+  "extracted_sections": [
+    {
+      "document": "Learn Acrobat - Create and Convert_1.pdf",
+      "section_title": "Create a blank PDF",
+      "importance_rank": 1,
+      "page_number": 11
+    },
+    {
+      "document": "Learn Acrobat - Create and Convert_1.pdf",
+      "section_title": "PDF creation methods by file type",
+      "importance_rank": 2,
+      "page_number": 2
+    },
+    {
+      "document": "The Ultimate PDF Sharing Checklist.pdf",
+      "section_title": "Conclusion",
+      "importance_rank": 3,
+      "page_number": 3
+    },
+    {
+      "document": "Learn Acrobat - Create and Convert_2.pdf",
+      "section_title": "Convert  Word  Styles  To Bookmarks",
+      "importance_rank": 4,
+      "page_number": 10
+    },
+    {
+      "document": "Learn Acrobat - Edit_2.pdf",
+      "section_title": "Edit Scanned PDFs",
+      "importance_rank": 5,
+      "page_number": 14
+    }
+  ],
+  "subsection_analysis": [
+    {
+      "document": "Learn Acrobat - Create and Convert_1.pdf",
+      "refined_text": "For longer, more complex, or heavily formatted documents, it’s better to create the source document in an application that offers more layout and formatting options, such as Adobe InDesign o r Microsoft Word. This process can be useful for creating a one -page PDF. • Select the hamburger menu > Create > Blank Page (Windows), or File > Create > Blank Page (macOS). Do any of the following: • In Acrobat, select Create from the global bar. On the le� rail, select Blank page , and then select Create.",
+      "page_number": 11
+    },
+    {
+      "document": "Learn Acrobat - Create and Convert_1.pdf",
+      "refined_text": "File Type PDF Creation Methods Any file format Method 1 : From the top tools bar, select Create. Or, select the hamburger menu (Windows) or the File menu (macOS) > Create and then select the appropriate file type and follow through the steps. What ’s the best way to create a PDF? You can create PDFs from documents printed on paper, Microsoft Word documents, InDesign® files, digital images, and more. For example, you can drag files to the Acrobat icon to create PDFs. Method 2 : Drag and drop a file from your system to the Acrobat Home page.",
+      "page_number": 2
+    },
+    {
+      "document": "The Ultimate PDF Sharing Checklist.pdf",
+      "refined_text": "By following these checklists, you can ensure that your sharing process is smooth and professional. Conclusion Sharing PDFs with Adobe Acrobat is straightforward and e fficient, whether you're working on a general project or managing real estate documents. Start sharing smarter today.",
+      "page_number": 3
+    }
+  ]
+}

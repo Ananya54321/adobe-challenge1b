@@ -252,7 +252,7 @@ class PersonaDrivenDocumentAnalyzer:
         # Try LLM-based keyword generation first
         llm_keywords = self._generate_keywords_with_llm(persona, job)
         
-        if llm_keywords:
+        if llm_keywords and len(llm_keywords['high_value']) >= 8:  # Ensure minimum quality threshold
             print(f"LLM generated {len(llm_keywords['high_value'])} high-value and {len(llm_keywords['context_specific'])} domain-specific keywords")
             return llm_keywords
         
@@ -263,43 +263,164 @@ class PersonaDrivenDocumentAnalyzer:
     def _generate_keywords_with_llm(self, persona: str, job: str) -> Dict[str, List[str]]:
         """Use LLM to generate domain-specific keywords for improved accuracy"""
         try:
-            # Create a focused prompt for keyword extraction
+            # Create a more flexible prompt for better keyword generation
             prompt = f"""As an expert analyst, identify the most important keywords for a {persona} working on: {job}
 
-Generate exactly 20 keywords that would be most relevant for finding useful content:
+Generate 30-35 relevant keywords that would help find the most useful content. Include:
+- Action-oriented terms (how-to, process, implementation words)
+- Domain-specific terminology (technical terms, specialized vocabulary)
+- Outcome/goal-focused words (results, benefits, success indicators)
+- Task-specific terms related to the work being done
 
-1. List 8 action-oriented keywords (how-to, implementation, process-related terms)
-2. List 7 domain-specific keywords (technical terms, specialized vocabulary)
-3. List 5 outcome/goal keywords (results, benefits, success indicators)
+List the keywords separated by commas, focusing on quality and relevance:
 
-Format as comma-separated lists:
-Action keywords: 
-Domain keywords:
-Outcome keywords:"""
+Keywords: """
 
-            inputs = self.tokenizer(prompt, return_tensors="pt", max_length=300, truncation=True)
+            inputs = self.tokenizer(prompt, return_tensors="pt", max_length=350, truncation=True)
             
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
-                    max_new_tokens=150,
+                    max_new_tokens=200,  # Increased for more keywords
                     do_sample=True,
-                    temperature=0.7,  # Some creativity for diverse keywords
-                    top_p=0.9,
+                    temperature=0.6,  # Slightly more focused than before
+                    top_p=0.85,       # More focused sampling
                     pad_token_id=self.tokenizer.eos_token_id,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                    early_stopping=True
+                    eos_token_id=self.tokenizer.eos_token_id
+                    # Removed early_stopping to avoid warnings
                 )
             
             generated_text = self.tokenizer.decode(outputs[0][inputs['input_ids'].shape[-1]:], skip_special_tokens=True)
             
-            # Parse the generated keywords
-            return self._parse_llm_keywords(generated_text, persona, job)
+            # Parse the generated keywords with improved processing
+            return self._parse_llm_keywords_optimized(generated_text, persona, job)
             
         except Exception as e:
             print(f"Error generating keywords with LLM: {e}")
             return None
     
+    def _parse_llm_keywords_optimized(self, generated_text: str, persona: str, job: str) -> Dict[str, List[str]]:
+        """Optimized parsing for flexible LLM-generated keywords with improved quality"""
+        
+        # Extract keywords from the generated text more flexibly
+        all_keywords = []
+        
+        # Look for comma-separated keywords after "Keywords:" or similar patterns
+        lines = generated_text.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Skip metadata lines
+            if any(skip_word in line.lower() for skip_word in ['generate', 'list', 'include:', 'keywords:', 'terms:', 'focusing']):
+                # But if there are keywords after a colon, extract them
+                if ':' in line:
+                    after_colon = line.split(':', 1)[1].strip()
+                    if after_colon and ',' in after_colon:
+                        keywords = [k.strip() for k in after_colon.split(',') if k.strip()]
+                        all_keywords.extend(keywords)
+                continue
+            
+            # Extract keywords from lines that contain commas (likely keyword lists)
+            if ',' in line and len(line) > 10:
+                keywords = [k.strip() for k in line.split(',') if k.strip()]
+                all_keywords.extend(keywords)
+            
+            # Also check for individual meaningful keywords on their own lines
+            elif line and len(line.split()) <= 3 and len(line) > 2:
+                # Likely a single keyword or short phrase
+                all_keywords.append(line.strip())
+        
+        # Clean and filter keywords
+        cleaned_keywords = []
+        for keyword in all_keywords:
+            # Remove quotes, extra punctuation
+            keyword = keyword.strip('"\'.,;!?-').strip()
+            
+            # Filter criteria
+            if (len(keyword) >= 3 and len(keyword) <= 30 and  # Reasonable length
+                not keyword.lower().startswith(('the ', 'and ', 'or ', 'but ')) and  # No articles/conjunctions
+                keyword.lower() not in ['etc', 'other', 'various', 'different', 'many'] and  # No vague terms
+                not keyword.isdigit()):  # No pure numbers
+                cleaned_keywords.append(keyword.lower())
+        
+        # Remove duplicates while preserving order
+        unique_keywords = list(dict.fromkeys(cleaned_keywords))
+        
+        print(f"LLM generated {len(unique_keywords)} unique keywords from {len(all_keywords)} raw keywords")
+        
+        # Intelligent categorization based on keyword characteristics
+        action_keywords = []
+        domain_keywords = []
+        outcome_keywords = []
+        
+        # Action indicators
+        action_indicators = ['how', 'step', 'method', 'process', 'guide', 'tutorial', 'create', 'build', 
+                           'setup', 'configure', 'implement', 'develop', 'design', 'plan', 'organize',
+                           'manage', 'execute', 'perform', 'conduct', 'establish', 'generate']
+        
+        # Outcome indicators  
+        outcome_indicators = ['result', 'success', 'achievement', 'goal', 'outcome', 'benefit', 'advantage',
+                            'improvement', 'optimization', 'efficiency', 'effectiveness', 'quality',
+                            'performance', 'solution', 'resolution']
+        
+        for keyword in unique_keywords:
+            # Categorize based on content
+            if any(indicator in keyword for indicator in action_indicators):
+                action_keywords.append(keyword)
+            elif any(indicator in keyword for indicator in outcome_indicators):
+                outcome_keywords.append(keyword) 
+            else:
+                # Default to domain-specific if not clearly action or outcome
+                domain_keywords.append(keyword)
+        
+        # Ensure balanced distribution with minimum thresholds
+        min_action = 8
+        min_domain = 10
+        min_outcome = 5
+        
+        # If we don't have enough in any category, redistribute
+        if len(action_keywords) < min_action:
+            # Move some domain keywords to action if they could be interpreted as action
+            for keyword in domain_keywords[:]:
+                if any(word in keyword for word in ['tool', 'feature', 'option', 'setting', 'control']) and len(action_keywords) < min_action:
+                    action_keywords.append(keyword)
+                    domain_keywords.remove(keyword)
+        
+        if len(outcome_keywords) < min_outcome:
+            # Move some domain keywords to outcome if they relate to benefits/results
+            for keyword in domain_keywords[:]:
+                if any(word in keyword for word in ['benefit', 'value', 'impact', 'advantage']) and len(outcome_keywords) < min_outcome:
+                    outcome_keywords.append(keyword)
+                    domain_keywords.remove(keyword)
+        
+        # Supplement with rule-based keywords if we're still short
+        if len(unique_keywords) < 25:
+            print(f"Only {len(unique_keywords)} keywords generated, supplementing with rule-based approach")
+            rule_based = self._generate_keywords_rule_based(persona, job)
+            
+            # Add rule-based keywords that aren't already present
+            for keyword in rule_based['high_value']:
+                if keyword not in unique_keywords and len(action_keywords) < 15:
+                    action_keywords.append(keyword)
+                    
+            for keyword in rule_based['context_specific']:
+                if keyword not in unique_keywords and len(domain_keywords) < 20:
+                    domain_keywords.append(keyword)
+        
+        # Combine persona/job terms
+        persona_keywords = [word.lower() for word in persona.split() if len(word) > 2]
+        job_keywords = [word.lower() for word in job.split() if len(word) > 3]
+        
+        # Final result with improved distribution
+        return {
+            'high_value': action_keywords + outcome_keywords,  # Combined action and outcome for high impact
+            'medium_value': ['practical', 'useful', 'important', 'essential', 'key', 'effective', 'recommended'],
+            'context_specific': domain_keywords,  # Domain-specific terms
+            'persona_keywords': persona_keywords,
+            'job_keywords': job_keywords
+        }
+
     def _parse_llm_keywords(self, generated_text: str, persona: str, job: str) -> Dict[str, List[str]]:
         """Parse LLM-generated keywords and create structured keyword groups"""
         lines = generated_text.strip().split('\n')
@@ -819,27 +940,24 @@ Refined content:"""
                 "page_number": section['page_number']
             })
         
-        # Generate subsection analysis with deduplication
+        # Generate subsection analysis with improved deduplication
         processed_content = set()  # Track processed content to avoid duplicates
+        content_hashes = set()     # Track content hashes for exact duplicate detection
         
-        for section in relevant_sections[:5]:  # Check more sections to find unique ones
-            # Create a content signature for deduplication
+        for section in relevant_sections[:10]:  # Check more sections to find unique ones
+            # Create content hash for exact duplicate detection
+            content_hash = hash(section['content'][:200])  # Use first 200 chars for hash
+            
+            if content_hash in content_hashes:
+                continue
+                
+            # Create a content signature for title/location deduplication
             content_signature = f"{section['document']}_{section['page_number']}_{section['title'][:50]}"
             
-            # Skip if we've already processed very similar content
+            # Skip if we've already processed very similar content by location/title
             if content_signature in processed_content:
                 continue
-                
-            # Also check for content similarity by comparing first 100 characters
-            content_preview = section['content'][:100].strip()
-            content_exists = any(
-                existing_sig.endswith(content_preview[:50]) 
-                for existing_sig in processed_content
-            )
             
-            if content_exists:
-                continue
-                
             refined_text = self.generate_refined_text(persona, job, section['content'])
             # Clean up the refined text to remove unnecessary newlines and formatting issues
             cleaned_text = self._clean_refined_text(refined_text)
@@ -850,8 +968,9 @@ Refined content:"""
                 "page_number": section['page_number']
             })
             
-            # Mark this content as processed
+            # Mark this content as processed using both methods
             processed_content.add(content_signature)
+            content_hashes.add(content_hash)
             
             # Stop when we have 3 unique analyses
             if len(output_data["subsection_analysis"]) >= 3:
@@ -867,6 +986,14 @@ Refined content:"""
 
 def main():
     """Main execution function"""
+    import argparse
+    
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Process PDF documents with persona-driven analysis')
+    parser.add_argument('--persona', type=str, help='The persona/role for analysis')
+    parser.add_argument('--job', type=str, help='The job to be done description')
+    args = parser.parse_args()
+    
     # Default paths for Docker environment
     input_dir = "/app/input"
     output_dir = "/app/output"
@@ -879,9 +1006,12 @@ def main():
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # Read persona and job from environment or use defaults
-    persona = os.getenv('PERSONA', 'Travel Planner')
-    job = os.getenv('JOB_TO_BE_DONE', 'Plan a comprehensive trip for a group of college friends.')
+    # Read persona and job from command line args, then environment, then use defaults
+    persona = args.persona or os.getenv('PERSONA', 'Travel Planner')
+    job = args.job or os.getenv('JOB_TO_BE_DONE', 'Plan a comprehensive trip for a group of college friends.')
+    
+    print(f"Using persona: {persona}")
+    print(f"Using job: {job}")
     
     # Initialize analyzer
     analyzer = PersonaDrivenDocumentAnalyzer()
