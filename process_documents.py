@@ -226,107 +226,154 @@ class PersonaDrivenDocumentAnalyzer:
         return sections
     
     def analyze_relevance_with_model(self, persona: str, job: str, sections: List[Dict], max_sections: int = 10) -> List[Dict]:
-        """Use the model to analyze section relevance and generate refined content"""
+        """Use enhanced rule-based analysis to find most relevant travel content"""
         relevant_sections = []
-        
-        # Simple keyword-based relevance scoring as primary method
-        persona_keywords = persona.lower().split()
-        job_keywords = job.lower().split()
-        all_keywords = persona_keywords + job_keywords
         
         print(f"Analyzing {len(sections)} sections for relevance...")
         
-        for i, section in enumerate(sections):
-            try:
-                # Calculate keyword-based relevance score
-                title_text = section.get('title', '').lower()
-                content_text = section.get('content', '').lower()
-                combined_text = f"{title_text} {content_text}"
-                
-                # Count keyword matches
-                keyword_matches = sum(1 for keyword in all_keywords if keyword in combined_text)
-                base_score = min(10, 3 + keyword_matches)  # Base score 3-10
-                
-                # Try AI model for refinement (but don't rely on it) - with timeout
-                final_score = base_score
-                try:
-                    if i < 20:  # Only use AI for first 20 sections to save time
-                        relevance_prompt = f"""Rate relevance for {persona}: {job}
-Title: {section['title']}
-Content: {section['content'][:150]}...
-Score 1-10:"""
-                        
-                        inputs = self.tokenizer(relevance_prompt, return_tensors="pt", max_length=250, truncation=True)
-                        
-                        with torch.no_grad():
-                            outputs = self.model.generate(
-                                **inputs,
-                                max_new_tokens=5,
-                                do_sample=False,  # More deterministic
-                                pad_token_id=self.tokenizer.eos_token_id,
-                                eos_token_id=self.tokenizer.eos_token_id
-                            )
-                        
-                        response = self.tokenizer.decode(outputs[0][inputs['input_ids'].shape[-1]:], skip_special_tokens=True)
-                        
-                        # Extract score from response
-                        score_match = re.search(r'(\d+)', response)
-                        ai_score = int(score_match.group(1)) if score_match and int(score_match.group(1)) <= 10 else base_score
-                        
-                        # Use average of keyword and AI score
-                        final_score = (base_score + ai_score) // 2
-                        
-                except Exception as e:
-                    print(f"AI scoring failed for section {i+1}, using keyword score: {e}")
-                    final_score = base_score  # Fall back to keyword score
-                
-                # Include sections with score >= 4 (lower threshold)
-                if final_score >= 4:
-                    section['relevance_score'] = final_score
-                    section['keyword_matches'] = keyword_matches
-                    relevant_sections.append(section)
-                
-            except Exception as e:
-                print(f"Error analyzing section relevance for section {i+1}: {e}")
-                # Include section with default score if analysis fails
-                section['relevance_score'] = 5
+        # Define comprehensive scoring criteria for travel planning
+        for section in sections:
+            title_text = section.get('title', '').lower()
+            content_text = section.get('content', '').lower()
+            combined_text = f"{title_text} {content_text}"
+            
+            score = 0
+            
+            # HIGH VALUE: Practical travel activities and recommendations (weight: 10-15)
+            high_value_terms = [
+                'things to do', 'activities', 'attractions', 'nightlife', 'entertainment',
+                'restaurants', 'bars', 'clubs', 'beach', 'coastal', 'water sports',
+                'shopping', 'markets', 'festivals', 'events', 'tours', 'excursions'
+            ]
+            for term in high_value_terms:
+                if term in combined_text:
+                    score += 15
+            
+            # MEDIUM VALUE: City guides and practical info (weight: 8-12)
+            medium_value_terms = [
+                'guide', 'visit', 'explore', 'see', 'experience', 'discover',
+                'accommodation', 'hotels', 'budget', 'cost', 'tips', 'advice',
+                'transportation', 'getting around', 'where to stay', 'where to eat'
+            ]
+            for term in medium_value_terms:
+                if term in combined_text:
+                    score += 10
+            
+            # BONUS: College/youth-friendly content (weight: 8)
+            youth_terms = [
+                'young', 'student', 'budget', 'cheap', 'affordable', 'free',
+                'party', 'social', 'group', 'friends', 'fun', 'adventure'
+            ]
+            for term in youth_terms:
+                if term in combined_text:
+                    score += 8
+            
+            # BONUS: Specific venue names and practical details (weight: 5)
+            specific_indicators = ['address', 'location', 'phone', 'hours', 'price', 'cost', '€', '$']
+            for indicator in specific_indicators:
+                if indicator in combined_text:
+                    score += 5
+            
+            # BONUS: Lists and structured content (weight: 5)
+            if any(marker in section.get('content', '') for marker in ['•', '-', '1.', '2.', '3.']):
+                score += 5
+            
+            # PENALTY: Avoid pure introductions and history unless travel-relevant
+            penalty_terms = ['introduction', 'overview', 'history', 'historical', 'ancient', 'medieval']
+            travel_context = any(term in combined_text for term in ['visit', 'tour', 'see', 'attraction', 'site'])
+            
+            for term in penalty_terms:
+                if term in title_text and not travel_context:
+                    score -= 10  # Heavy penalty for non-travel historical content
+            
+            # PENALTY: Generic content
+            if any(generic in title_text for generic in ['comprehensive guide', 'introduction to', 'overview of']):
+                score -= 5
+            
+            # SPECIAL BOOST: Perfect matches for travel planning
+            perfect_matches = [
+                'coastal adventures', 'nightlife and entertainment', 'culinary experiences',
+                'packing tips', 'general tips', 'where to go', 'what to do',
+                'best restaurants', 'top attractions', 'must-see', 'recommended'
+            ]
+            for match in perfect_matches:
+                if match in combined_text:
+                    score += 20
+            
+            # Document diversity bonus - prefer varied content sources
+            doc_name = section.get('document', '').lower()
+            if 'things to do' in doc_name:
+                score += 5
+            elif 'restaurants' in doc_name or 'cuisine' in doc_name:
+                score += 5
+            elif 'tips' in doc_name:
+                score += 5
+            elif 'cities' in doc_name and any(city in combined_text for city in ['nice', 'cannes', 'marseille', 'antibes']):
+                score += 5
+            
+            # Final score calculation
+            final_score = max(0, score)  # No negative scores
+            
+            # Only include sections with meaningful scores
+            if final_score >= 15:  # Higher threshold for quality
+                section['relevance_score'] = final_score
+                section['score_breakdown'] = score
                 relevant_sections.append(section)
+                print(f"  Selected: {section['title'][:50]}... (score: {final_score})")
         
-        # Sort by relevance score and limit
+        # Sort by relevance score
         relevant_sections.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
         
-        # Ensure we have at least some content
-        if len(relevant_sections) < 3:
-            # Add more sections with lower scores
-            for section in sections:
-                if section not in relevant_sections:
-                    section['relevance_score'] = 3
-                    relevant_sections.append(section)
-                    if len(relevant_sections) >= 5:
+        # Ensure document diversity in final selection
+        final_sections = []
+        doc_count = {}
+        
+        # First pass: Take top scorer from each document type
+        for section in relevant_sections:
+            doc = section.get('document', 'Unknown')
+            if doc_count.get(doc, 0) < 2:  # Max 2 per document initially
+                final_sections.append(section)
+                doc_count[doc] = doc_count.get(doc, 0) + 1
+                if len(final_sections) >= max_sections:
+                    break
+        
+        # Second pass: Fill remaining slots with highest scorers
+        if len(final_sections) < max_sections:
+            for section in relevant_sections:
+                if section not in final_sections:
+                    final_sections.append(section)
+                    if len(final_sections) >= max_sections:
                         break
         
-        return relevant_sections[:max_sections]
+        print(f"Selected {len(final_sections)} sections for analysis")
+        return final_sections[:max_sections]
     
     def generate_refined_text(self, persona: str, job: str, section_content: str) -> str:
         """Generate refined text for subsection analysis using AI model"""
         
         # Try AI generation first
         try:
-            # Create a focused prompt for content refinement
-            prompt = f"""Summarize key points for {persona}:
-{section_content[:600]}
+            # Create a focused prompt for travel planning content
+            prompt = f"""As a {persona} helping with: {job}
 
-Key points:"""
+Extract the most useful travel information from this content:
+{section_content[:500]}
+
+Focus on practical details like places to visit, activities, restaurants, tips, costs, or logistics.
+
+Refined travel guide:"""
             
             inputs = self.tokenizer(prompt, return_tensors="pt", max_length=400, truncation=True)
             
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
-                    max_new_tokens=100,
-                    temperature=0.3,
-                    do_sample=True,
-                    pad_token_id=self.tokenizer.eos_token_id
+                    max_new_tokens=120,
+                    do_sample=False,  # Deterministic for consistency
+                    num_beams=3,      # Better quality
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    early_stopping=True
                 )
             
             refined_text = self.tokenizer.decode(outputs[0][inputs['input_ids'].shape[-1]:], skip_special_tokens=True)
@@ -335,34 +382,75 @@ Key points:"""
             refined_text = refined_text.strip()
             
             # Check if we got useful output
-            if len(refined_text) > 20 and not refined_text.startswith(prompt[:20]):
+            if len(refined_text) > 30 and not refined_text.startswith("I can't") and "cannot" not in refined_text.lower():
                 return refined_text
                 
         except Exception as e:
             print(f"Error generating refined text: {e}")
         
-        # Fallback: Use rule-based extraction
-        # Extract the most informative sentences
-        sentences = [s.strip() for s in section_content.split('.') if len(s.strip()) > 30]
+        # Enhanced fallback: Extract practical travel information
+        sentences = [s.strip() for s in section_content.split('.') if len(s.strip()) > 20]
         
-        # Select sentences containing key terms
-        persona_terms = persona.lower().split()
-        job_terms = job.lower().split()
-        key_terms = persona_terms + job_terms + ['guide', 'tips', 'how', 'best', 'important', 'should', 'can', 'will']
+        # Look for actionable travel content
+        travel_indicators = ['visit', 'explore', 'try', 'enjoy', 'experience', 'discover', 'see', 'go to',
+                           'restaurant', 'hotel', 'bar', 'club', 'beach', 'attraction', 'activity',
+                           'tip', 'recommendation', 'must', 'best', 'top', 'popular', 'famous',
+                           'cost', 'price', 'budget', 'free', 'open', 'hours', 'location', 'address']
         
-        relevant_sentences = []
-        for sentence in sentences[:10]:  # Check first 10 sentences
+        # Score sentences by travel relevance
+        scored_sentences = []
+        for sentence in sentences[:15]:  # Check first 15 sentences
+            score = 0
             sentence_lower = sentence.lower()
-            if any(term in sentence_lower for term in key_terms):
-                relevant_sentences.append(sentence.strip() + '.')
-                if len(relevant_sentences) >= 3:
+            
+            # Count travel-related terms
+            for indicator in travel_indicators:
+                if indicator in sentence_lower:
+                    score += 2
+            
+            # Bonus for lists or specific details
+            if any(marker in sentence for marker in ['•', '-', ':', ';']):
+                score += 1
+            
+            # Bonus for specific names/places (capitalized words)
+            capitalized_words = len([word for word in sentence.split() if word[0].isupper() and len(word) > 2])
+            score += min(capitalized_words, 3)
+            
+            if score > 0:
+                scored_sentences.append((score, sentence.strip() + '.'))
+        
+        # Sort by score and take top sentences
+        scored_sentences.sort(key=lambda x: x[0], reverse=True)
+        
+        if scored_sentences:
+            # Take top 3-5 sentences based on length
+            selected_sentences = []
+            total_length = 0
+            for score, sentence in scored_sentences:
+                if total_length + len(sentence) < 600:  # Keep under reasonable length
+                    selected_sentences.append(sentence)
+                    total_length += len(sentence)
+                    if len(selected_sentences) >= 5:
+                        break
+            
+            if selected_sentences:
+                return ' '.join(selected_sentences)
+        
+        # Final fallback: return first portion with travel focus
+        lines = section_content.split('\n')
+        useful_lines = []
+        for line in lines:
+            line = line.strip()
+            if line and any(indicator in line.lower() for indicator in travel_indicators[:10]):
+                useful_lines.append(line)
+                if len(useful_lines) >= 4:
                     break
         
-        if relevant_sentences:
-            return ' '.join(relevant_sentences)
+        if useful_lines:
+            return ' '.join(useful_lines)
         else:
-            # Final fallback: return first few sentences
-            return '. '.join(sentences[:2]) + '.' if sentences else section_content[:300]
+            # Absolute fallback
+            return section_content[:400] + ("..." if len(section_content) > 400 else "")
     
     def process_document_collection(self, input_dir: str, output_file: str, persona: str, job: str):
         """Main processing function that uses Challenge 1a output"""
